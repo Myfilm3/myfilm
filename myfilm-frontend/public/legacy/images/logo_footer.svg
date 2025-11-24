@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   id="Capa_1"
+   viewBox="0 0 1080 338.84"
+   version="1.1"
+   sodipodi:docname="logo_footer.svg"
+   inkscape:version="1.1 (c68e22c387, 2021-05-23)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview23"
+     pagecolor="#505050"
+     bordercolor="#eeeeee"
+     borderopacity="1"
+     inkscape:pageshadow="0"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="0"
+     showgrid="false"
+     inkscape:zoom="0.37712362"
+     inkscape:cx="383.16349"
+     inkscape:cy="-115.34679"
+     inkscape:window-width="1920"
+     inkscape:window-height="1017"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="Capa_1" />
+  <defs
+     id="defs4">
+    <style
+       id="style2">.cls-1{fill:#ffab00;}</style>
+  </defs>
+  <g
+     id="g884">
+    <path
+       class="cls-1"
+       d="M1080,338.84H0v-123.87H7.29c25.13,0,45.56-20.44,45.56-45.56S32.41,123.87,7.29,123.87H0V0H1080V123.87h-7.29c-25.13,0-45.56,20.44-45.56,45.56s20.44,45.56,45.56,45.56h7.29v123.87ZM14.57,324.27H1065.43v-95.16c-29.74-3.6-52.85-29-52.85-59.69s23.11-56.09,52.85-59.69V14.57H14.57V109.73c29.74,3.6,52.85,29,52.85,59.69s-23.11,56.09-52.85,59.69v95.16Z"
+       id="path6"
+       style="fill:#adbbcc;fill-opacity:1" />
+    <g
+       id="g20"
+       style="fill:#adbbcc;fill-opacity:1">
+      <path
+         class="cls-1"
+         d="M148.26,244.96V93.89h36.36l39.59,115.44,40.02-115.44h36.15V244.96h-25.81V126.48l-39.81,118.48h-21.21l-39.49-117.75v117.75h-25.81Z"
+         id="path8"
+         style="fill:#adbbcc;fill-opacity:1" />
+      <path
+         class="cls-1"
+         d="M450.2,93.89l-51.92,87.23v63.84h-25.39v-63.94l-52.03-87.13h27.58l37.3,64.98,36.67-64.98h27.79Z"
+         id="path10"
+         style="fill:#adbbcc;fill-opacity:1" />
+      <path
+         class="cls-1"
+         d="M470.68,93.89h98.84l-.11,21.52h-72.92v43.46h64.36v21.21h-64.36v64.88h-25.81V93.89Z"
+         id="path12"
+         style="fill:#adbbcc;fill-opacity:1" />
+      <path
+         class="cls-1"
+         d="M596.99,93.89h25.39V244.96h-25.39V93.89Z"
+         id="path14"
+         style="fill:#adbbcc;fill-opacity:1" />
+      <path
+         class="cls-1"
+         d="M659.05,93.89h25.7V223.02h68.22v21.94h-94.03l.11-151.07Z"
+         id="path16"
+         style="fill:#adbbcc;fill-opacity:1" />
+      <path
+         class="cls-1"
+         d="M779.61,244.96V93.89h36.36l39.59,115.44,40.02-115.44h36.15V244.96h-25.81V126.48l-39.81,118.48h-21.21l-39.49-117.75v117.75h-25.81Z"
+         id="path18"
+         style="fill:#adbbcc;fill-opacity:1" />
+    </g>
+  </g>
+</svg>
