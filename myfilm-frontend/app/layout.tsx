@@ -1,7 +1,14 @@
 // app/layout.tsx
+import type { Metadata } from 'next';
 import './globals.css';
 import TopNav from '@/components/nav/TopNav';
 import Image from 'next/image';
+
+export const metadata: Metadata = {
+  title: 'MyFilm – Encuentra qué ver hoy en tus plataformas',
+  description:
+    'Descubre qué ver esta noche en tus plataformas de streaming. Recomendaciones personalizadas de cine y series en español.',
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -16,7 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             src="/legacy/images/degradado.webp"
             alt=""
             fill
-            priority
+            // sin priority: dejamos que el hero sea el LCP
             sizes="100vw"
             className="object-cover"
           />

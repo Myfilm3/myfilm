@@ -21,8 +21,13 @@ export default function TopNav() {
 
   const capRef = useRef<HTMLDivElement>(null);
 
+  // Sombra / fondo según scroll (muy barato: solo cambia boolean)
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40);
+    const onScroll = () => {
+      // Evitamos hacer setState si no cambia el valor
+      const next = window.scrollY > 40;
+      setScrolled((prev) => (prev === next ? prev : next));
+    };
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
@@ -44,7 +49,7 @@ export default function TopNav() {
   }, []);
 
   return (
-    <header className="sticky top-0 z-50">
+    <header className="sticky top-0 z-50" aria-label="Navegación principal">
       {/* Banda que centra la cápsula */}
       <div className="w-full flex justify-center py-2">
         {/* CÁPSULA alineada con carruseles (90vw / 1600px) */}
@@ -61,21 +66,24 @@ export default function TopNav() {
         >
           {/* Col 1: LOGO */}
           <div className="flex items-center pl-8">
-            <Link href="/" aria-label="Inicio" className="inline-flex items-center">
+            <Link href="/" aria-label="Ir a inicio" className="inline-flex items-center">
               <Image
                 src="/legacy/images/logo3.webp"
                 alt="MYFILM"
                 width={120}
                 height={30}
-                priority
-                className="select-none pointer-events-none"
+                // Sin priority → dejamos el LCP para el Hero
+                className="select-none"
               />
             </Link>
           </div>
 
           {/* Col 2: TABS (ocultas si se abre el buscador) */}
           {!searchOpen && (
-            <nav className="hidden md:flex items-center justify-center gap-2">
+            <nav
+              className="hidden md:flex items-center justify-center gap-2"
+              aria-label="Secciones principales"
+            >
               {TABS.map((t) => {
                 const active = pathname === t.href;
                 return (
@@ -116,6 +124,7 @@ export default function TopNav() {
                 onFocus={() => setSearchOpen(true)}
                 onBlur={() => setSearchOpen(false)}
                 className="w-full h-10 rounded-full bg-black/70 text-white placeholder-white/60 pl-11 pr-4 outline-none ring-1 ring-white/10 focus:ring-white/30"
+                aria-label="Buscar contenido"
               />
               <span className="absolute left-2 top-1/2 -translate-y-1/2 text-white/60">
                 🔍
@@ -125,7 +134,7 @@ export default function TopNav() {
             {/* Botón / avatar de usuario (SIEMPRE visible en desktop) */}
             <Link
               href="/user"
-              aria-label="Cuenta"
+              aria-label="Ir a tu cuenta"
               className="ml-3 hidden md:inline-flex w-9 h-9 items-center justify-center rounded-full bg-white/10 hover:bg-white/20"
             >
               <span className="text-sm">👤</span>
@@ -145,7 +154,7 @@ export default function TopNav() {
 
       {/* Drawer móvil */}
       {drawerOpen && (
-        <div className="fixed inset-0 z-[60] md:hidden">
+        <div className="fixed inset-0 z-[60] md:hidden" aria-modal="true" role="dialog">
           <div
             className="absolute inset-0 bg-black/60"
             onClick={() => setDrawerOpen(false)}
@@ -153,15 +162,14 @@ export default function TopNav() {
           <aside className="absolute left-0 top-0 h-full w-[82%] max-w-xs bg-neutral-900 border-r border-white/10 p-4 space-y-4">
             <div className="flex items-center justify-between">
               <Image
-                src="/legacy/images/logo3.png"
+                src="/legacy/images/logo3.webp"
                 alt="MYFILM"
                 width={100}
                 height={30}
-                priority
               />
               <button
                 onClick={() => setDrawerOpen(false)}
-                aria-label="Cerrar"
+                aria-label="Cerrar menú"
                 className="text-white text-xl"
               >
                 ×
@@ -172,9 +180,10 @@ export default function TopNav() {
                 type="search"
                 placeholder="Busca todo, todo y todo"
                 className="w-full h-10 rounded-full bg-black/60 text-white placeholder-white/60 px-4 outline-none ring-1 ring-white/10 focus:ring-white/30"
+                aria-label="Buscar contenido"
               />
             </div>
-            <nav className="pt-2 space-y-2">
+            <nav className="pt-2 space-y-2" aria-label="Menú móvil">
               {TABS.map((t) => (
                 <Link
                   key={t.href}

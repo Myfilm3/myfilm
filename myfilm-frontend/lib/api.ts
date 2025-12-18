@@ -1,57 +1,12 @@
+// lib/api.ts
+
+// Base de la API propia (MyFilm API)
+// - En local: usa NEXT_PUBLIC_API_BASE de .env.local (ej: http://localhost:3001/api)
+// - En Vercel / producción: usa NEXT_PUBLIC_API_BASE
+// - Fallback de seguridad: https://api.myfilm.es/api (NUNCA localhost en build)
 export const API =
-  process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:3001/api';
-
-/* ============ TOP LISTS ============ */
-
-type TopKind = 'popular' | 'trending' | 'upcoming' | 'top_rated';
-
-type TopOptions = {
-  type?: 'movie' | 'tv' | 'all';
-  window?: 'day' | 'week';
-  page?: number;
-};
-
-export async function getTop(kind: TopKind, opts: TopOptions = {}) {
-  const { type, window, page = 1 } = opts;
-
-  const params = new URLSearchParams();
-  params.set('page', String(page));
-  if (type) params.set('type', type);
-  if (kind === 'trending' && window) params.set('window', window);
-
-  const qs = params.toString();
-  const url = `${API}/top/${kind}?${qs}`;
-
-  const res = await fetch(url, { next: { revalidate: 60 } });
-  if (!res.ok) throw new Error(`Top ${kind} failed`);
-
-  return res.json() as Promise<{
-    page: number;
-    results: Array<{
-      id: number;
-      title?: string;
-      name?: string;
-      poster_path?: string | null;
-      backdrop_path?: string | null;
-      vote_average?: number;
-      media_type?: 'movie' | 'tv';
-      release_date?: string;
-      first_air_date?: string;
-      overview?: string;
-    }>;
-    total_pages: number;
-    total_results: number;
-  }>;
-}
-
-/** Utilidad para imágenes TMDB */
-export function img(
-  path?: string | null,
-  size: 'w185' | 'w342' | 'w500' = 'w342',
-) {
-  if (!path) return '/placeholder-poster.svg';
-  return `https://image.tmdb.org/t/p/${size}${path}`;
-}
+  (process.env.NEXT_PUBLIC_API_BASE?.replace(/\/$/, '')) ||
+  'https://api.myfilm.es/api';
 
 /* ========= TMDB base ========= */
 
@@ -63,6 +18,141 @@ type Provider = {
   provider_name: string;
   logo_path?: string | null;
 };
+
+/* ============ TOP LISTS ============ */
+
+type TopKind = 'popular' | 'trending' | 'upcoming' | 'top_rated';
+
+type TopOptions = {
+  type?: 'movie' | 'tv' | 'all';
+  window?: 'day' | 'week';
+  page?: number;
+};
+
+type TopResultItem = {
+  id: number;
+  title?: string;
+  name?: string;
+  poster_path?: string | null;
+  backdrop_path?: string | null;
+  vote_average?: number;
+  media_type?: 'movie' | 'tv';
+  release_date?: string;
+  first_air_date?: string;
+  overview?: string;
+};
+
+type TopResponse = {
+  page: number;
+  results: TopResultItem[];
+  total_pages: number;
+  total_results: number;
+};
+
+export async function getTop(
+  kind: TopKind,
+  opts: TopOptions = {},
+): Promise<TopResponse> {
+  const { type, window, page = 1 } = opts;
+
+  const empty: TopResponse = {
+    page,
+    results: [],
+    total_pages: 0,
+    total_results: 0,
+  };
+
+  // 1) Intento backend /top/...
+  try {
+    const params = new URLSearchParams();
+    params.set('page', String(page));
+    if (type) params.set('type', type);
+    if (kind === 'trending' && window) params.set('window', window);
+
+    const url = `${API}/top/${kind}?${params.toString()}`;
+    const res = await fetch(url, { next: { revalidate: 60 } });
+
+    if (res.ok) {
+      return (await res.json()) as TopResponse;
+    } else {
+      console.error(
+        `❌ Backend /top/${kind} respondió ${res.status}`,
+        await res.text(),
+      );
+    }
+  } catch (err) {
+    console.error(`❌ Error en getTop ${kind} (backend) →`, err);
+  }
+
+  // 2) Fallback directo a TMDB
+  if (!TMDB_KEY) {
+    console.error('❌ Falta NEXT_PUBLIC_TMDB_KEY para fallback de getTop');
+    return empty;
+  }
+
+  try {
+    const params = new URLSearchParams();
+    params.set('api_key', TMDB_KEY);
+    params.set('language', 'es-ES');
+    params.set('page', String(page));
+
+    let path = '';
+
+    switch (kind) {
+      case 'trending': {
+        const media = type === 'movie' || type === 'tv' ? type : 'all';
+        const win = window ?? 'week';
+        path = `trending/${media}/${win}`;
+        break;
+      }
+      case 'popular': {
+        // TMDB no tiene "popular all", usamos movies o tv
+        const media = type === 'tv' ? 'tv' : 'movie';
+        path = `${media}/popular`;
+        break;
+      }
+      case 'top_rated': {
+        const media = type === 'tv' ? 'tv' : 'movie';
+        path = `${media}/top_rated`;
+        break;
+      }
+      case 'upcoming': {
+        path = 'movie/upcoming';
+        break;
+      }
+      default:
+        return empty;
+    }
+
+    const url = `${TMDB}/${path}?${params.toString()}`;
+    const res = await fetch(url, { next: { revalidate: 60 } });
+
+    if (!res.ok) {
+      console.error(
+        `❌ Error fallback TMDB getTop ${kind}: ${res.status}`,
+        await res.text(),
+      );
+      return empty;
+    }
+
+    const data = (await res.json()) as {
+      page?: number;
+      results?: unknown[];
+      total_pages?: number;
+      total_results?: number;
+    };
+
+    return {
+      page: data.page ?? page,
+      results: (data.results ?? []) as TopResultItem[],
+      total_pages: data.total_pages ?? 0,
+      total_results: data.total_results ?? 0,
+    };
+  } catch (err) {
+    console.error(`❌ Error fetch TMDB getTop ${kind} →`, err);
+    return empty;
+  }
+}
 
 /* ========= MOVIES ========= */
 

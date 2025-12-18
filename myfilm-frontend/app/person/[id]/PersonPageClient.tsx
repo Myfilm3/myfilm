@@ -17,6 +17,22 @@ function formatLifespan(person: PersonDetails) {
   return `${fmt(birth)} — ${fmt(death)}`;
 }
 
+function dedupeCredits(list: PersonCreditEntry[]) {
+  const seen = new Map<string, PersonCreditEntry>();
+  for (const entry of list) {
+    if (!entry.media_type || typeof entry.id === 'undefined' || entry.id === null) {
+      continue;
+    }
+    const key = `${entry.media_type}-${entry.id}`;
+    const maybeBetter =
+      (entry.popularity ?? 0) > (seen.get(key)?.popularity ?? -Infinity);
+    if (!seen.has(key) || maybeBetter) {
+      seen.set(key, entry);
+    }
+  }
+  return Array.from(seen.values());
+}
+
 function sortCredits(list: PersonCreditEntry[] = []) {
   return [...list].sort((a, b) => {
     const pa = a.popularity ?? 0;
@@ -90,7 +106,7 @@ export default function PersonPageClient() {
     const cast = person?.combined_credits?.cast ?? [];
     const crew = person?.combined_credits?.crew ?? [];
 
-    const all = [...cast, ...crew];
+    const all = dedupeCredits([...cast, ...crew]);
 
     const movies = sortCredits(
       all.filter((c) => c.media_type === 'movie'),
@@ -134,8 +150,6 @@ export default function PersonPageClient() {
   const lifespan = formatLifespan(person);
 
   return (
-    <div className="relative min-h-screen text-white bg-gradient-to-b from-black via-slate-950 to-black">
-      <Container>
         <main className="py-10 space-y-10">
           {/* CABECERA PERSONA */}
           <section className="flex flex-col gap-8 lg:flex-row lg:items-start">
@@ -233,7 +247,5 @@ export default function PersonPageClient() {
             </section>
           )}
         </main>
-      </Container>
-    </div>
   );
 }

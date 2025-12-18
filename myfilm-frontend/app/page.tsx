@@ -1,10 +1,14 @@
 // app/page.tsx
+import type { ReactNode } from 'react';
 import { getTop } from '@/lib/api';
 import Hero from './Hero';
 import CarouselSection from '@/components/layout/CarouselSection';
 import MoodsSection from '@/components/home/MoodsSection';
+import MostWatchedSection from '@/components/home/MostWatchedSection';
+import UpcomingSection from '@/components/home/UpcomingSection';
+import GenresSection from '@/components/home/GenresSection';
 
-function FullBleed90vw({ children }: { children: React.ReactNode }) {
+function FullBleed90vw({ children }: { children: ReactNode }) {
   return (
     <div className="w-screen relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] px-[5vw]">
       {children}
@@ -41,19 +45,18 @@ export default async function Home() {
 
   return (
     <>
-      {heroItems.length > 0 && (
-        // No pasamos intervalSec para evitar el warning de tipos; que use el default
-        <Hero items={heroItems} fullBleed />
-      )}
+      {heroItems.length > 0 && <Hero items={heroItems} fullBleed />}
 
-      <main className="space-y-12 py-8">
-        {/* Nuestras recomendaciones */}
-        <FullBleed90vw>
-          <CarouselSection
-            title="Nuestras recomendaciones"
-            items={(popularAll.results ?? []).slice(0, 22)}
-          />
-        </FullBleed90vw>
+      <main className="relative z-[5] pt-0 space-y-12">
+        {/* Recomendaciones para ti → asomando 250px dentro del hero */}
+        <div className="-mt-[250px]">
+          <FullBleed90vw>
+            <CarouselSection
+              title="Recomendaciones para ti"
+              items={(popularAll.results ?? []).slice(0, 22)}
+            />
+          </FullBleed90vw>
+        </div>
 
         {/* Mejor valoradas (solo películas) */}
         <FullBleed90vw>
@@ -68,20 +71,29 @@ export default async function Home() {
           <MoodsSection />
         </FullBleed90vw>
 
-        {/* Lo más visto en tus plataformas */}
+        {/* Lo más visto en tus plataformas (panel grande + carrusel derecha) */}
         <FullBleed90vw>
-          <CarouselSection
-            title="Lo más visto en tus plataformas"
-            items={(mostWatchedAll.results ?? []).slice(0, 22)}
+          <MostWatchedSection
+            items={(mostWatchedAll.results ?? []).slice(0, 12)}
           />
         </FullBleed90vw>
 
-        {/* Próximamente */}
+        {/* Relacionado con lo último que has visto (de momento falseado con trendingWeek) */}
         <FullBleed90vw>
           <CarouselSection
-            title="Próximamente"
-            items={(upcomingMovies.results ?? []).slice(0, 22)}
+            title="Relacionado con lo último que has visto"
+            items={(trendingWeek.results ?? []).slice(0, 22)}
           />
+        </FullBleed90vw>
+
+        {/* NUEVA sección: géneros + CTA “¿Aún con todo…?” */}
+        <FullBleed90vw>
+          <GenresSection />
+        </FullBleed90vw>
+
+        {/* Próximamente → con texto de estreno al hacer hover */}
+        <FullBleed90vw>
+          <UpcomingSection items={(upcomingMovies.results ?? []).slice(0, 22)} />
         </FullBleed90vw>
       </main>
     </>

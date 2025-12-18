@@ -1,9 +1,16 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, MouseEvent } from 'react';
 import Image from 'next/image';
-import Button from '@/components/ui/Button';
-import { getTitleLogo, getTrailer } from '@/lib/api';
+import { useRouter } from 'next/navigation';
+import {
+  getTitleLogo,
+  getTrailer,
+  getMovie,
+  getTv,
+  type MovieDetails,
+  type TvDetails,
+} from '@/lib/api';
 
 type HeroItem = {
   id: number;
@@ -13,6 +20,7 @@ type HeroItem = {
   backdrop_path?: string | null;
   poster_path?: string | null;
   media_type?: 'movie' | 'tv';
+  vote_average?: number;
 };
 
 type Props = {
@@ -20,8 +28,33 @@ type Props = {
   fullBleed?: boolean;
 };
 
+type MetaState = {
+  ageLabel: string | null;
+  runtimeLabel: string | null;
+};
+
+// Extendemos tipos solo para las partes de ratings que necesitamos
+type MovieWithRatings = MovieDetails & {
+  release_dates?: {
+    results?: {
+      iso_3166_1?: string;
+      release_dates?: { certification?: string | null }[];
+    }[];
+  };
+};
+
+type TvWithRatings = TvDetails & {
+  content_ratings?: {
+    results?: {
+      iso_3166_1?: string;
+      rating?: string | null;
+    }[];
+  };
+};
+
 export default function Hero({ items, fullBleed = true }: Props) {
-  // Solo 10 items máximo
+  const router = useRouter();
+
   const pool = useMemo(
     () => (items ?? []).filter(Boolean).slice(0, 10),
     [items],
@@ -34,32 +67,38 @@ export default function Hero({ items, fullBleed = true }: Props) {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [trailerUrl, setTrailerUrl] = useState<string | null>(null);
   const [showTrailer, setShowTrailer] = useState(false);
+  const [meta, setMeta] = useState<MetaState>({
+    ageLabel: null,
+    runtimeLabel: null,
+  });
 
-  // Navegación manual
-  const goPrev = () => {
+  const goPrev = (e: MouseEvent) => {
+    e.stopPropagation();
     if (!pool.length) return;
     setIdx((i) => (i - 1 + pool.length) % pool.length);
   };
 
-  const goNext = () => {
+  const goNext = (e: MouseEvent) => {
+    e.stopPropagation();
     if (!pool.length) return;
     setIdx((i) => (i + 1) % pool.length);
   };
 
-  // Cargar logo + tráiler cada vez que cambia el item
   useEffect(() => {
     if (!current) return;
 
     let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
+    let resetTimeout: ReturnType<typeof setTimeout> | null = null;
+    let trailerTimeout: ReturnType<typeof setTimeout> | null = null;
 
     // Reset asíncrono para contentar al linter
-    setTimeout(() => {
+    resetTimeout = setTimeout(() => {
       if (cancelled) return;
       setLoadedId(null);
       setLogoUrl(null);
       setTrailerUrl(null);
       setShowTrailer(false);
+      setMeta({ ageLabel: null, runtimeLabel: null });
     }, 0);
 
     const mediaType: 'movie' | 'tv' =
@@ -67,9 +106,12 @@ export default function Hero({ items, fullBleed = true }: Props) {
 
     (async () => {
       try {
-        const [logo, trailer] = await Promise.all([
+        const [logo, trailer, details] = await Promise.all([
           getTitleLogo(mediaType, current.id).catch(() => null),
           getTrailer(mediaType, current.id).catch(() => null),
+          mediaType === 'movie'
+            ? getMovie(current.id).catch(() => null)
+            : getTv(current.id).catch(() => null),
         ]);
 
         if (cancelled) return;
@@ -77,23 +119,100 @@ export default function Hero({ items, fullBleed = true }: Props) {
         setLogoUrl(logo ?? null);
         setTrailerUrl(trailer ?? null);
 
+        // ====== edad mínima + duración reales ======
+        let ageLabel: string | null = null;
+        let runtimeLabel: string | null = null;
+
+        if (details) {
+          if (mediaType === 'movie') {
+            const movie = details as MovieWithRatings;
+
+            // duración
+            if (typeof movie.runtime === 'number' && movie.runtime > 0) {
+              const mins = movie.runtime;
+              const h = Math.floor(mins / 60);
+              const m = mins % 60;
+              runtimeLabel =
+                h > 0
+                  ? `${h}h ${m.toString().padStart(2, '0')}min`
+                  : `${m}min`;
+            }
+
+            // edad mínima desde release_dates
+            const rd = movie.release_dates?.results ?? [];
+            const pickCountry = (code: string) =>
+              rd.find(
+                (r) =>
+                  r.iso_3166_1 === code &&
+                  (r.release_dates?.length ?? 0) > 0,
+              );
+            const countryBlock =
+              pickCountry('ES') || pickCountry('US') || rd[0];
+
+            const cert =
+              countryBlock?.release_dates?.find(
+                (x) =>
+                  (x.certification ?? '').trim().length > 0,
+              )?.certification ?? '';
+
+            if (cert) {
+              ageLabel = `${cert}+`;
+            }
+          } else {
+            const tv = details as TvWithRatings;
+
+            // duración: primer runtime de episodio
+            const er = tv.episode_run_time ?? [];
+            if (er.length && er[0] > 0) {
+              const mins = er[0];
+              const h = Math.floor(mins / 60);
+              const m = mins % 60;
+              runtimeLabel =
+                h > 0
+                  ? `${h}h ${m.toString().padStart(2, '0')}min`
+                  : `${m}min`;
+            }
+
+            // edad desde content_ratings
+            const cr = tv.content_ratings?.results ?? [];
+            const pickCountry = (code: string) =>
+              cr.find(
+                (r) =>
+                  r.iso_3166_1 === code &&
+                  (r.rating ?? '').trim().length > 0,
+              );
+            const ratingBlock =
+              pickCountry('ES') || pickCountry('US') || cr[0];
+
+            const cert = ratingBlock?.rating ?? '';
+
+            if (cert) {
+              ageLabel = `${cert}+`;
+            }
+          }
+        }
+
+        setMeta({ ageLabel, runtimeLabel });
+
         if (trailer) {
-          timer = setTimeout(() => {
+          trailerTimeout = setTimeout(() => {
             if (!cancelled) setShowTrailer(true);
-          }, 5000); // 5 segundos
+          }, 10000);
         }
       } catch {
         if (!cancelled) {
           setLogoUrl(null);
           setTrailerUrl(null);
           setShowTrailer(false);
+          setMeta({ ageLabel: null, runtimeLabel: null });
         }
       }
     })();
 
     return () => {
       cancelled = true;
-      if (timer) clearTimeout(timer);
+      if (resetTimeout) clearTimeout(resetTimeout);
+      if (trailerTimeout) clearTimeout(trailerTimeout);
     };
   }, [current]);
 
@@ -109,22 +228,30 @@ export default function Hero({ items, fullBleed = true }: Props) {
     ? 'relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw]'
     : '';
 
-  // Construye la URL del iframe con autoplay/mute
   const iframeSrc =
     trailerUrl && !trailerUrl.includes('?')
       ? `${trailerUrl}?autoplay=1&mute=1&controls=0&rel=0&playsinline=1&modestbranding=1&showinfo=0`
       : trailerUrl || undefined;
 
+  const rating = current.vote_average;
+  const ratingLabel = rating ? rating.toFixed(1) : null;
+
+  const goToDetails = () => {
+    const type = current.media_type === 'tv' ? 'series' : 'movies';
+    router.push(`/${type}/${current.id}`);
+  };
+
   return (
     <div className={wrapper}>
       <section
         aria-label={`Hero: ${title}`}
-        className="relative w-full overflow-hidden bg-[#040D19]"
+        className="relative w-full overflow-hidden bg-[#040D19] cursor-pointer"
         style={{
           height: '100svh',
           marginTop: 'calc(var(--nav-h, 0px) * -1.25)',
           paddingTop: 'var(--nav-h, 0px)',
         }}
+        onClick={goToDetails}
       >
         {/* Fondo imagen */}
         <Image
@@ -140,9 +267,9 @@ export default function Hero({ items, fullBleed = true }: Props) {
           }`}
         />
 
-        {/* Tráiler a pantalla completa */}
+        {/* Tráiler */}
         {showTrailer && iframeSrc && (
-          <div className="absolute inset-0">
+          <div className="absolute inset-0 pointer-events-none">
             <iframe
               src={iframeSrc}
               title="Trailer"
@@ -158,9 +285,9 @@ export default function Hero({ items, fullBleed = true }: Props) {
         <div className="pointer-events-none absolute inset-y-0 left-0 w-1/2 bg-gradient-to-r from-black/60 via-black/25 to-transparent" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#040D19] via-[#040D19]/70 to-transparent" />
 
-        {/* Texto + botones */}
-        <div className="absolute inset-0 flex items-end pointer-events-none">
-          <div className="px-6 md:px-10 lg:px-14 pb-20 md:pb-24 lg:pb-28 max-w-[70ch] pointer-events-auto">
+        {/* Bloque de texto */}
+        <div className="absolute inset-0 flex items-center">
+          <div className="px-6 md:px-10 lg:px-14 max-w-[70ch] translate-y-[-5vh]">
             {logoUrl ? (
               <div className="relative w-[320px] max-w-[60vw] h-[120px]">
                 <Image
@@ -176,22 +303,25 @@ export default function Hero({ items, fullBleed = true }: Props) {
               </h1>
             )}
 
-            {current.overview && (
-              <p className="mt-3 text-base md:text-lg text-white/90 max-w-2xl line-clamp-3 md:line-clamp-4 drop-shadow-md">
-                {current.overview}
-              </p>
-            )}
+            {/* Chips: valoración / edad / duración */}
+            <div className="mt-4 flex flex-wrap items-center gap-3 text-sm md:text-base text-white/90">
+              {ratingLabel && (
+                <span className="inline-flex items-center rounded-full border border-white/40 bg-black/50 px-3 py-1">
+                  ⭐ <span className="ml-1">{ratingLabel}</span>
+                </span>
+              )}
 
-            <div className="mt-6 flex items-center gap-3">
-              <Button onClick={() => console.log('play', current.id)}>
-                Reproducir
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => console.log('mas-info', current.id)}
-              >
-                Más información
-              </Button>
+              {meta.ageLabel && (
+                <span className="inline-flex items-center rounded-full border border-white/40 bg-black/50 px-3 py-1">
+                  {meta.ageLabel}
+                </span>
+              )}
+
+              {meta.runtimeLabel && (
+                <span className="inline-flex items-center rounded-full border border-white/40 bg-black/50 px-3 py-1">
+                  {meta.runtimeLabel}
+                </span>
+              )}
             </div>
           </div>
         </div>
