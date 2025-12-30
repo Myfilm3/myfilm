@@ -61,26 +61,26 @@ export default function GenresSection() {
                 className="absolute inset-0"
                 style={{
                   background: `
-                    radial-gradient(circle at 0% 0%, rgba(255,255,255,0.18), transparent 55%),
+                    linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.15) 90%, rgba(0,0,0,0.3) 100%),
                     linear-gradient(135deg, ${g.from}, ${g.to})
                   `,
                 }}
               />
-              <div className="absolute inset-0 bg-black/25 mix-blend-multiply" />
-             <div className="relative h-full flex items-end justify-center px-4 pb-4">
-  <span className="text-lg md:text-xl font-semibold text-white drop-shadow text-center">
-    {g.label}
-  </span>
-</div>
+              <div className="absolute inset-0 bg-black/20 mix-blend-multiply" />
+              <div className="relative h-full flex items-end justify-center px-4 pb-4">
+                <span className="text-lg md:text-xl font-semibold text-white drop-shadow text-center">
+                  {g.label}
+                </span>
+              </div>
             </Link>
           ))}
         </div>
       </div>
 
       {/* CTA “¿Aún con todo, todavía no sabes qué ver?” */}
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] gap-8 items-stretch">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.4fr)] gap-4 md:gap-6 items-stretch">
         {/* Texto izquierda – sin caja de fondo marcada */}
-        <div className="flex flex-col justify-center max-w-xl">
+        <div className="flex flex-col justify-center max-w-2xl">
           <h3 className="text-2xl md:text-3xl font-extrabold text-white">
             ¿Aún con todo no sabes todavía qué ver?
           </h3>

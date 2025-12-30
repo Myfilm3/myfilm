@@ -33,13 +33,12 @@ export default function PosterCard({
   rating,
   duration,
   href,
-  onPlay,
   onMore,
-  onAdd,
 }: PosterCardProps) {
+  const placeholderSrc = '/legacy/images/caratula_vacia.webp';
   const posterSrc = poster_path
     ? `https://image.tmdb.org/t/p/w500${poster_path}`
-    : '/placeholder-poster.jpg';
+    : placeholderSrc;
 
   const backSrc = backdrop_path
     ? `https://image.tmdb.org/t/p/w500${backdrop_path}`

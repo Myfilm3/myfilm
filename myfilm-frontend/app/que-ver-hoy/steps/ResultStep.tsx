@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
+import Hero from '@/app/Hero';
 import { useQVHStore } from '../store/qvh.store';
 import { DOC_THEMES } from '../types';
 
@@ -13,6 +15,7 @@ type TMDBItem = {
   vote_average?: number;
   release_date?: string;
   first_air_date?: string;
+  media_type?: 'movie' | 'tv';
 };
 
 const TMDB_BASE = 'https://api.themoviedb.org/3';
@@ -27,8 +30,6 @@ function assertTmdbKey(): string {
 
 export default function ResultStep() {
   const state = useQVHStore();
-  const prevStep = useQVHStore((s) => s.prevStep);
-  const reset = useQVHStore((s) => s.reset);
 
   const [items, setItems] = useState<TMDBItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -102,7 +103,13 @@ export default function ResultStep() {
         const json: { results: TMDBItem[] } = await res.json();
         if (cancelled) return;
 
-        setItems(json.results?.slice(0, 22) ?? []);
+        const mediaType: 'movie' | 'tv' = state.type === 'series' ? 'tv' : 'movie';
+        const enriched = (json.results ?? []).map((it) => ({
+          ...it,
+          media_type: mediaType,
+        }));
+
+        setItems(enriched.slice(0, 22));
       } catch (e) {
         if (cancelled) return;
         const msg = e instanceof Error ? e.message : 'Error desconocido';
@@ -118,25 +125,20 @@ export default function ResultStep() {
     };
   }, [state.type, state.time, state.docTime, state.docTheme, docThemeDef?.tmdbKeywordIds]);
 
+  const rest = items.slice(1);
+  const heroItems = useMemo(
+    () =>
+      items
+        .map((it) => ({
+          ...it,
+          media_type: it.media_type ?? (state.type === 'series' ? 'tv' : 'movie'),
+        }))
+        .slice(0, 1), // Solo una opción en el hero de resultados
+    [items, state.type],
+  );
+
   return (
-    <div className="py-10">
-      <h2 className="text-3xl font-semibold">Esto es lo que te encaja hoy</h2>
-
-      <div className="mt-4 flex gap-3">
-        <button
-          className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 hover:bg-white/10"
-          onClick={prevStep}
-        >
-          Atrás
-        </button>
-        <button
-          className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 hover:bg-white/10"
-          onClick={reset}
-        >
-          Empezar de nuevo
-        </button>
-      </div>
-
+    <div className="pb-16">
       {err && (
         <div className="mt-6 rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-sm">
           {err}
@@ -150,26 +152,69 @@ export default function ResultStep() {
 
       {loading && <div className="mt-6 opacity-70">Cargando resultados…</div>}
 
-      {!loading && !err && (
-        <div className="mt-8 grid grid-cols-6 gap-4">
-          {items.map((it) => {
-            const title = it.title ?? it.name ?? 'Sin título';
-            return (
-              <div
-                key={it.id}
-                className="rounded-2xl border border-white/10 bg-white/5 p-3"
-              >
-                <div className="text-sm font-semibold line-clamp-2">
-                  {title}
-                </div>
-                <div className="text-xs opacity-60 mt-1">
-                  {(it.release_date ?? it.first_air_date ?? '').slice(0, 4)}
-                  {typeof it.vote_average === 'number' ? ` · ⭐ ${Math.round(it.vote_average * 10)}%` : ''}
+      {!loading && !err && heroItems.length > 0 && (
+        <>
+          <div className="relative" style={{ ['--nav-h' as any]: '96px' }}>
+            <Hero items={heroItems} fullBleed />
+          </div>
+
+          {/* Carrusel de resto */}
+          {rest.length > 0 && (
+            <section className="-mt-16 md:-mt-100 space-y-3 px-4 md:px-8">
+              <h4 className="text-lg font-semibold">Más que te pueden encajar</h4>
+              <div className="flex justify-center">
+                <div className="w-[90vw] max-w-6xl">
+                  <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    {rest.map((it) => {
+                      const title = it.title ?? it.name ?? 'Sin título';
+                      const poster = it.poster_path ?? it.backdrop_path ?? null;
+                      const year =
+                        (it.release_date ?? it.first_air_date ?? '').slice(0, 4) || '—';
+                      const score =
+                        typeof it.vote_average === 'number'
+                          ? `${Math.round(it.vote_average * 10)}%`
+                          : null;
+                      return (
+                        <div
+                          key={it.id}
+                          className="snap-start w-[160px] sm:w-[180px] shrink-0 rounded-2xl overflow-hidden border border-white/10 bg-white/5 shadow-[0_14px_36px_rgba(0,0,0,0.55)] transition"
+                        >
+                          <a href={state.type === 'series' ? `/series/${it.id}` : `/movies/${it.id}`}>
+                            <div className="relative aspect-[2/3] bg-white/10">
+                              {poster ? (
+                                <Image
+                                  src={`https://image.tmdb.org/t/p/w500${poster}`}
+                                  alt={title}
+                                  fill
+                                  sizes="180px"
+                                  className="object-cover"
+                                  priority
+                                />
+                              ) : (
+                                <div className="absolute inset-0 flex items-center justify-center text-xs text-white/60">
+                                  Sin imagen
+                                </div>
+                              )}
+                            </div>
+                            <div className="p-3 space-y-1">
+                              <p className="text-sm font-semibold leading-tight line-clamp-2">
+                                {title}
+                              </p>
+                              <p className="text-xs text-white/70">
+                                {year}
+                                {score ? ` · ⭐ ${score}` : ''}
+                              </p>
+                            </div>
+                          </a>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
-            );
-          })}
-        </div>
+            </section>
+          )}
+        </>
       )}
 
       {/* Debug opcional */}

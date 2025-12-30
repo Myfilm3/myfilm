@@ -9,6 +9,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { MfbModule } from './mfb/mfb.module';
+import { WatchmodeModule } from './watchmode/watchmode.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { MfbModule } from './mfb/mfb.module';
     AuthModule,
     UsersModule,
     MfbModule, // 👈
+    WatchmodeModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

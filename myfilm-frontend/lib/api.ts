@@ -475,6 +475,10 @@ export type PersonCreditEntry = {
   title?: string | null;
   name?: string | null;
   poster_path?: string | null;
+  genre_ids?: number[];
+  genres?: { id: number; name?: string | null }[];
+  release_date?: string | null;
+  first_air_date?: string | null;
   vote_count?: number;
   popularity?: number;
 };

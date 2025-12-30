@@ -30,6 +30,7 @@
     "@nestjs/swagger": "^11.2.1",
     "@nestjs/throttler": "^6.4.0",
     "@prisma/client": "^6.19.0",
+    "@watchmode/api-client": "^1.0.0",
     "axios": "^1.13.2",
     "bullmq": "^5.63.0",
     "class-transformer": "^0.5.1",

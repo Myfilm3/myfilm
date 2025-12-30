@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, MouseEvent } from 'react';
+import { useEffect, useMemo, useState, useRef, useCallback, MouseEvent } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import {
@@ -55,6 +55,8 @@ type TvWithRatings = TvDetails & {
 export default function Hero({ items, fullBleed = true }: Props) {
   const router = useRouter();
 
+  const TRAILER_PROGRESS_MS = 15000;
+
   const pool = useMemo(
     () => (items ?? []).filter(Boolean).slice(0, 10),
     [items],
@@ -65,12 +67,16 @@ export default function Hero({ items, fullBleed = true }: Props) {
 
   const [loadedId, setLoadedId] = useState<number | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoLoading, setLogoLoading] = useState(true);
   const [trailerUrl, setTrailerUrl] = useState<string | null>(null);
+  const [mountTrailer, setMountTrailer] = useState(false);
   const [showTrailer, setShowTrailer] = useState(false);
+  const [trailerProgress, setTrailerProgress] = useState(0);
   const [meta, setMeta] = useState<MetaState>({
     ageLabel: null,
     runtimeLabel: null,
   });
+  const progressRaf = useRef<number | null>(null);
 
   const goPrev = (e: MouseEvent) => {
     e.stopPropagation();
@@ -84,20 +90,29 @@ export default function Hero({ items, fullBleed = true }: Props) {
     setIdx((i) => (i + 1) % pool.length);
   };
 
+  const goNextAuto = useCallback(() => {
+    if (!pool.length) return;
+    setIdx((i) => (i + 1) % pool.length);
+  }, [pool.length]);
+
   useEffect(() => {
     if (!current) return;
 
     let cancelled = false;
     let resetTimeout: ReturnType<typeof setTimeout> | null = null;
-    let trailerTimeout: ReturnType<typeof setTimeout> | null = null;
+    let trailerMountTimeout: ReturnType<typeof setTimeout> | null = null;
+    let trailerShowTimeout: ReturnType<typeof setTimeout> | null = null;
 
     // Reset asíncrono para contentar al linter
     resetTimeout = setTimeout(() => {
       if (cancelled) return;
       setLoadedId(null);
       setLogoUrl(null);
+      setLogoLoading(true);
       setTrailerUrl(null);
+      setMountTrailer(false);
       setShowTrailer(false);
+      setTrailerProgress(0);
       setMeta({ ageLabel: null, runtimeLabel: null });
     }, 0);
 
@@ -117,7 +132,9 @@ export default function Hero({ items, fullBleed = true }: Props) {
         if (cancelled) return;
 
         setLogoUrl(logo ?? null);
+        setLogoLoading(false);
         setTrailerUrl(trailer ?? null);
+        setTrailerProgress(0);
 
         // ====== edad mínima + duración reales ======
         let ageLabel: string | null = null;
@@ -195,15 +212,25 @@ export default function Hero({ items, fullBleed = true }: Props) {
         setMeta({ ageLabel, runtimeLabel });
 
         if (trailer) {
-          trailerTimeout = setTimeout(() => {
+          const MOUNT_AT_MS = 4500; // carga anticipada (más rápida)
+          const SHOW_AT_MS = 6000; // funde a vídeo antes para evitar spinner
+
+          trailerMountTimeout = setTimeout(() => {
+            if (!cancelled) setMountTrailer(true);
+          }, MOUNT_AT_MS);
+
+          trailerShowTimeout = setTimeout(() => {
             if (!cancelled) setShowTrailer(true);
-          }, 10000);
+          }, SHOW_AT_MS);
         }
       } catch {
         if (!cancelled) {
           setLogoUrl(null);
+          setLogoLoading(false);
           setTrailerUrl(null);
+          setMountTrailer(false);
           setShowTrailer(false);
+          setTrailerProgress(0);
           setMeta({ ageLabel: null, runtimeLabel: null });
         }
       }
@@ -212,11 +239,10 @@ export default function Hero({ items, fullBleed = true }: Props) {
     return () => {
       cancelled = true;
       if (resetTimeout) clearTimeout(resetTimeout);
-      if (trailerTimeout) clearTimeout(trailerTimeout);
+      if (trailerMountTimeout) clearTimeout(trailerMountTimeout);
+      if (trailerShowTimeout) clearTimeout(trailerShowTimeout);
     };
   }, [current]);
-
-  if (!current) return null;
 
   const title = current.title || current.name || 'Sin título';
   const bg = current.backdrop_path || current.poster_path;
@@ -241,8 +267,55 @@ export default function Hero({ items, fullBleed = true }: Props) {
     router.push(`/${type}/${current.id}`);
   };
 
+  const [announcement, setAnnouncement] = useState('');
+
+  useEffect(() => {
+    const name = current?.title || current?.name || 'Sin título';
+    setAnnouncement(`Hero mostrando ${name}`);
+  }, [current?.id, current?.name, current?.title]);
+
+  useEffect(() => {
+    if (progressRaf.current) {
+      cancelAnimationFrame(progressRaf.current);
+      progressRaf.current = null;
+    }
+    setTrailerProgress(0);
+
+    if (!showTrailer || !trailerUrl) return undefined;
+
+    const durationMs = TRAILER_PROGRESS_MS;
+    const start = performance.now();
+
+    const tick = () => {
+      const elapsed = performance.now() - start;
+      const progress = Math.min(1, elapsed / durationMs);
+      setTrailerProgress(progress);
+
+      if (progress >= 1) {
+        progressRaf.current = null;
+        goNextAuto();
+        return;
+      }
+
+      progressRaf.current = requestAnimationFrame(tick);
+    };
+
+    progressRaf.current = requestAnimationFrame(tick);
+
+    return () => {
+      if (progressRaf.current) {
+        cancelAnimationFrame(progressRaf.current);
+        progressRaf.current = null;
+      }
+    };
+  }, [showTrailer, trailerUrl, idx, goNextAuto]);
+  if (!current) return null;
+
   return (
     <div className={wrapper}>
+      <div aria-live="polite" aria-atomic="true" className="sr-only">
+        {announcement}
+      </div>
       <section
         aria-label={`Hero: ${title}`}
         className="relative w-full overflow-hidden bg-[#040D19] cursor-pointer"
@@ -269,14 +342,16 @@ export default function Hero({ items, fullBleed = true }: Props) {
 
         {/* Tráiler */}
         {showTrailer && iframeSrc && (
-          <div className="absolute inset-0 pointer-events-none">
-            <iframe
-              src={iframeSrc}
-              title="Trailer"
-              className="w-full h-full"
-              allow="autoplay; encrypted-media; picture-in-picture"
-              allowFullScreen
-            />
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            {mountTrailer && (
+              <iframe
+                src={iframeSrc}
+                title="Trailer"
+                className={`absolute left-1/2 top-1/2 w-[120vw] h-[120vh] -translate-x-1/2 -translate-y-1/2 transition-opacity duration-[1400ms] ease-out ${showTrailer ? 'opacity-100' : 'opacity-0'}`}
+                allow="autoplay; encrypted-media; picture-in-picture"
+                allowFullScreen
+              />
+            )}
           </div>
         )}
 
@@ -288,7 +363,9 @@ export default function Hero({ items, fullBleed = true }: Props) {
         {/* Bloque de texto */}
         <div className="absolute inset-0 flex items-center">
           <div className="px-6 md:px-10 lg:px-14 max-w-[70ch] translate-y-[-5vh]">
-            {logoUrl ? (
+            {logoLoading ? (
+              <div className="w-[320px] max-w-[60vw] h-[120px] rounded-xl bg-white/10 animate-pulse" />
+            ) : logoUrl ? (
               <div className="relative w-[320px] max-w-[60vw] h-[120px]">
                 <Image
                   src={logoUrl}
@@ -333,7 +410,12 @@ export default function Hero({ items, fullBleed = true }: Props) {
               type="button"
               onClick={goPrev}
               aria-label="Anterior"
-              className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 flex items-center justify-center text-white text-2xl"
+              className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 flex items-center justify-center text-white text-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+              onFocus={(e) => e.stopPropagation()}
+              onBlur={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onMouseUp={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
             >
               ‹
             </button>
@@ -341,11 +423,42 @@ export default function Hero({ items, fullBleed = true }: Props) {
               type="button"
               onClick={goNext}
               aria-label="Siguiente"
-              className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 flex items-center justify-center text-white text-2xl"
+              className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 flex items-center justify-center text-white text-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+              onFocus={(e) => e.stopPropagation()}
+              onBlur={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onMouseUp={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
             >
               ›
             </button>
           </>
+        )}
+
+        {/* Indicador de progreso estilo dots */}
+        {pool.length > 1 && (
+          <div className="pointer-events-none absolute bottom-70 left-0 right-0 flex items-center justify-center gap-2 px-4">
+            {pool.map((_, i) => {
+              const isActive = i === idx;
+              const isPlaying = isActive && showTrailer && !!trailerUrl;
+              const width = isPlaying ? 'w-14' : isActive ? 'w-3' : 'w-2';
+              return (
+                <div
+                  key={i}
+                  className={`h-2 ${width} rounded-full bg-white/20 overflow-hidden transition-all duration-200`}
+                >
+                  {isPlaying ? (
+                    <div
+                      className="h-full bg-amber-400 transition-[width] duration-150"
+                      style={{ width: `${Math.max(4, Math.min(100, trailerProgress * 100))}%` }}
+                    />
+                  ) : (
+                    isActive && <div className="h-full w-full bg-white/70" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
         )}
       </section>
     </div>

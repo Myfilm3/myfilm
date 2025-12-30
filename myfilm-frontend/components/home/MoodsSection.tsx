@@ -29,7 +29,15 @@ const BASE_BG = '#050B14';
 function MoodCard({ mood }: { mood: Mood }) {
   const [hovered, setHovered] = useState(false);
 
-  const bgColor = hovered ? mood.color : BASE_BG;
+  const bgGradient = hovered
+    ? `
+        linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.2) 35%, rgba(0,0,0,0.6) 100%),
+        linear-gradient(135deg, ${mood.color}, ${mood.color})
+      `
+    : `
+        linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.12) 40%, rgba(0,0,0,0.35) 100%),
+        linear-gradient(135deg, ${BASE_BG}, ${BASE_BG})
+      `;
   const scale = hovered ? 1.03 : 1;
 
   return (
@@ -53,7 +61,7 @@ function MoodCard({ mood }: { mood: Mood }) {
         cursor-pointer
       "
       style={{
-        backgroundColor: bgColor,
+        background: bgGradient,
         transform: `scale(${scale})`,
       }}
     >
