@@ -34,4 +34,4 @@ jobs:
         run: |
           ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes \
             ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} \
-            "sudo -u deploy -H bash -lc '/var/www/deploy_admin.sh'"
+"sudo -u deploy -H bash -lc '/var/www/deploy_admin.sh'"
