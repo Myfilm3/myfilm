@@ -2,15 +2,19 @@ name: Deploy STAGING (admin.myfilm.es)
 
 on:
   push:
-    branches: ["main"]
+    branches:
+      - main
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Install rsync
+        run: sudo apt-get update && sudo apt-get install -y rsync
 
       - name: Setup SSH
         run: |
@@ -21,8 +25,6 @@ jobs:
 
       - name: Upload repo to VPS (rsync)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y rsync
           rsync -az --delete \
             --exclude ".git" \
             --exclude "node_modules" \
@@ -30,8 +32,8 @@ jobs:
             -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes" \
             ./ ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/var/www/myfilm-admin/
 
-      - name: Deploy (build + pm2)
+      - name: Deploy on VPS (build + pm2)
         run: |
           ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes \
             ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} \
-"sudo -u deploy -H bash -lc '/var/www/deploy_admin.sh'"
+            "cd /var/www/myfilm-admin && /var/www/deploy_admin.sh"
