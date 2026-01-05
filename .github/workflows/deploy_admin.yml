@@ -1,16 +1,19 @@
-name: Deploy STAGING (admin.myfilm.es)
+name: Deploy STAGING to admin.myfilm.es
 
 on:
   push:
-    branches:
-      - main
+    branches: ["main"]
+
+concurrency:
+  group: admin-myfilm-staging
+  cancel-in-progress: true
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install rsync
@@ -21,19 +24,21 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
 
       - name: Upload repo to VPS (rsync)
         run: |
           rsync -az --delete \
             --exclude ".git" \
             --exclude "node_modules" \
+            --exclude "**/node_modules" \
             --exclude ".next" \
+            --exclude "**/.next" \
             -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes" \
-            ./ ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/var/www/myfilm-admin/
+            ./ "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/var/www/myfilm-admin/"
 
-      - name: Deploy on VPS (build + pm2)
+      - name: Deploy (build + pm2)
         run: |
           ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes \
-            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} \
-            "cd /var/www/myfilm-admin && /var/www/deploy_admin.sh"
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            "/var/www/deploy_admin.sh"
