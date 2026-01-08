@@ -433,9 +433,10 @@ export default function MoviePageClient() {
   const [deeplinksDebug, setDeeplinksDebug] = useState<any>(null);
   const [synopsisExpanded, setSynopsisExpanded] = useState(false);
 
-  // ✅ MYFILM (PRODUCCIÓN)
+// ✅ MYFILM (PRODUCCIÓN)
   const [mfbRecs, setMfbRecs] = useState<MfbRecommendation[]>([]);
   const [mfbError, setMfbError] = useState<string | null>(null);
+  const [mfbLoading, setMfbLoading] = useState(true);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -642,9 +643,6 @@ export default function MoviePageClient() {
         setLoading(true);
         setError(null);
 
-        setMfbError(null);
-        setMfbRecs([]);
-
         const [movieData, logoUrl, trailerUrl] = await Promise.all([
           getMovie(tmdbId),
           getTitleLogo('movie', tmdbId),
@@ -668,57 +666,36 @@ export default function MoviePageClient() {
         setProvidersBuy(esProviders.buy);
         setDeeplinks([]); // reset
 
-        // 2) MFB (PRODUCCIÓN)
         const apiBase = normalizeApiBase(process.env.NEXT_PUBLIC_API_BASE);
-        const urlMyfilm = `${apiBase}/mfb/recommendations/by-title?titleId=${tmdbId}&limit=22`;
         const urlDeeplinks = `${apiBase}/watchmode/deeplinks?tmdbId=${tmdbId}&region=ES&title=${encodeURIComponent(
           titleForSearch || '',
         )}&year=${yearForSearch ?? ''}${isDev ? '&debug=1' : ''}`;
         setDeeplinksUrl(urlDeeplinks);
 
-        if (isDev) console.log('[MFB] Fetch MYFILM:', urlMyfilm);
         if (isDev) console.log('[Watchmode] Fetch deeplinks:', urlDeeplinks);
 
-        const [rMyfilm, rDeeplinks] = await Promise.allSettled([
-          fetchMfbRecommendations(urlMyfilm, 9000),
-          fetch(urlDeeplinks, { cache: 'no-store' }).then(async (res) => {
+        fetch(urlDeeplinks, { cache: 'no-store' })
+          .then(async (res) => {
             if (!res.ok) {
               if (isDev) console.warn('[Watchmode] Deeplinks', res.status, urlDeeplinks);
               return { links: [] as WatchmodeDeeplink[], debug: { error: `HTTP ${res.status}` } };
             }
             return (await res.json()) as WatchmodeDeeplink[];
-          }),
-        ]);
-
-        if (cancelled) return;
-
-        if (rMyfilm.status === 'fulfilled') {
-          const r = rMyfilm.value;
-          if (!r.ok) {
-            const snippet = (r.rawBody || '').slice(0, 500);
-            const msg = `MFB ${r.status} ${r.statusText} | ct=${r.contentType || 'n/a'} | url=${urlMyfilm} | body=${snippet || '∅'}`;
-            if (isDev) console.error('[MFB] ERROR:', msg);
-            setMfbError(msg);
-            setMfbRecs([]);
-          } else {
-            const results = (r.results ?? []) as MfbRecommendation[];
-            setMfbRecs(results);
-            if (results.length === 0) setMfbError(`MFB OK pero 0 resultados | url=${urlMyfilm}`);
-          }
-        }
-
-        if (rDeeplinks.status === 'fulfilled') {
-          const payload: any = rDeeplinks.value ?? [];
-          const links = Array.isArray(payload) ? payload : (payload.links ?? []);
-          const debugInfo = Array.isArray(payload) ? null : payload.debug ?? null;
-          setDeeplinks(links);
-          setDeeplinksDebug(debugInfo);
-          if (isDev) console.log('[Watchmode] Deeplinks response', { urlDeeplinks, payload });
-        } else if (isDev) {
-          console.error('[Watchmode] ERROR:', rDeeplinks.reason);
-          setDeeplinks([]);
-          setDeeplinksDebug({ error: String(rDeeplinks.reason) });
-        }
+          })
+          .then((payload: any) => {
+            if (cancelled) return;
+            const links = Array.isArray(payload) ? payload : (payload.links ?? []);
+            const debugInfo = Array.isArray(payload) ? null : payload.debug ?? null;
+            setDeeplinks(links);
+            setDeeplinksDebug(debugInfo);
+            if (isDev) console.log('[Watchmode] Deeplinks response', { urlDeeplinks, payload });
+          })
+          .catch((err) => {
+            if (cancelled) return;
+            if (isDev) console.error('[Watchmode] ERROR:', err);
+            setDeeplinks([]);
+            setDeeplinksDebug({ error: String(err) });
+          });
       } catch (err: any) {
         if (cancelled) return;
 
@@ -733,6 +710,7 @@ export default function MoviePageClient() {
 
         setError('Error cargando la película.');
         setMfbError(msg);
+        setMfbLoading(false);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -747,6 +725,61 @@ export default function MoviePageClient() {
   useEffect(() => {
     setSynopsisExpanded(false);
   }, [movie?.id]);
+
+  // Fetch MFB async (no bloquea la ficha)
+  useEffect(() => {
+    if (!tmdbId) return;
+
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    const apiBase = normalizeApiBase(process.env.NEXT_PUBLIC_API_BASE);
+    const urlMyfilm = `${apiBase}/mfb/recommendations/by-title?titleId=${tmdbId}&limit=22`;
+
+    const run = async (attempt = 0) => {
+      try {
+        setMfbLoading(true);
+        setMfbError(null);
+        setMfbRecs([]);
+
+        const r = await fetchMfbRecommendations(urlMyfilm, 9000);
+        if (cancelled) return;
+
+        if (!r.ok) {
+          const snippet = (r.rawBody || '').slice(0, 500);
+          const msg = `MFB ${r.status} ${r.statusText} | ct=${r.contentType || 'n/a'} | url=${urlMyfilm} | body=${snippet || '∅'}`;
+          if (isDev) console.error('[MFB] ERROR:', msg);
+          setMfbError(msg);
+          setMfbRecs([]);
+        } else {
+          const results = (r.results ?? []) as MfbRecommendation[];
+          setMfbRecs(results);
+          if (results.length === 0 && isDev) {
+            setMfbError(`MFB OK pero 0 resultados | url=${urlMyfilm}`);
+          }
+        }
+        if (!cancelled) setMfbLoading(false);
+      } catch (err: any) {
+        if (cancelled) return;
+        const isAbort =
+          err?.name === 'AbortError' || (typeof err?.message === 'string' && err.message.includes('aborted'));
+        if (isAbort && attempt < 2) {
+          retryTimer = setTimeout(() => run(attempt + 1), 700);
+          return;
+        }
+        if (isDev) console.error('[MFB] ERROR:', err);
+        const msg = err instanceof Error ? err.message : typeof err === 'string' ? err : 'Error MFB';
+        setMfbError(msg);
+        setMfbRecs([]);
+        if (!cancelled) setMfbLoading(false);
+      }
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [isDev, tmdbId]);
 
   if (loading) {
     return (
@@ -818,6 +851,8 @@ export default function MoviePageClient() {
   const layoutVars = {
     '--mf-shift': `${SHIFT_REM}rem`,
   } as CSSProperties;
+
+  const mfbSkeletonItems = [0, 1, 2, 3, 4, 5];
 
   const HERO_SHIFT_CLASS = 'relative';
   const HERO_SHIFT_STYLE = { transform: 'translateX(calc(-1 * var(--mf-shift)))' } as CSSProperties;
@@ -1018,7 +1053,7 @@ export default function MoviePageClient() {
                     <Link
                       key={key}
                       href={`/person/${c.id}`}
-                      className="group relative min-w-[170px] max-w-[170px] rounded-lg overflow-hidden shadow-[0_10px_25px_rgba(0,0,0,0.6)]"
+                      className="group relative min-w-[170px] max-w-[170px] rounded-lg overflow-hidden shadow-[0_10px_25px_rgba(0,0,0,0.6)] transform transition hover:-translate-y-1"
                       title={`${c.name}${c.character ? ` — ${c.character}` : ''}`}
                     >
                       {img ? (
@@ -1028,7 +1063,7 @@ export default function MoviePageClient() {
                           width={170}
                           height={255}
                           sizes="170px"
-                          className="w-full aspect-[2/3] object-cover"
+                          className="w-full aspect-[2/3] object-cover transition-transform duration-200 group-hover:scale-[1.04]"
                         />
                       ) : (
                         <div className="w-full aspect-[2/3] flex items-center justify-center text-xs text-white/60 bg-black/40">
@@ -1062,16 +1097,16 @@ export default function MoviePageClient() {
               Relacionadas por MYFILM
             </h2>
 
-            {mfbRecs.length === 0 ? (
-              <div className="space-y-1">
-                <p className="text-xs text-white/70">
-                  De momento no hay suficientes datos para recomendar similares.
-                </p>
-                {isDev && mfbError && (
-                  <p className="text-[11px] text-red-300/90">Debug MFB: {mfbError}</p>
-                )}
+            {mfbLoading ? (
+              <div className="flex gap-4 overflow-x-auto pb-3 pr-2">
+                {mfbSkeletonItems.map((idx) => (
+                  <div
+                    key={`mfb-skel-${idx}`}
+                    className="min-w-[170px] max-w-[170px] h-[255px] rounded-lg bg-white/5 border border-white/10 animate-pulse"
+                  />
+                ))}
               </div>
-            ) : (
+            ) : mfbRecs.length > 0 ? (
               <div className="flex gap-4 overflow-x-auto pb-3 pr-2">
                 {mfbRecs.map((r, idx) => {
                   const idForUrl = Number(r.tmdb_id ?? 0);
@@ -1111,11 +1146,19 @@ export default function MoviePageClient() {
                   );
                 })}
               </div>
+            ) : (
+              isDev &&
+              mfbError && (
+                <div className="space-y-1">
+                  <p className="text-[11px] text-red-300/90">Debug MFB: {mfbError}</p>
+                </div>
+              )
             )}
           </section>
 
           {/* TMDB (si lo quieres mantener) */}
-          {related.length > 0 && (
+          {/* TMDB similares oculto intencionadamente */}
+          {/* {related.length > 0 && (
             <section className="space-y-2" style={ROW_STRETCH_STYLE}>
               <h2 className="text-sm font-semibold text-amber-400 uppercase tracking-wide">
                 Películas similares que quizá te gusten
@@ -1147,23 +1190,7 @@ export default function MoviePageClient() {
                 })}
               </div>
             </section>
-          )}
-          {isDev && (
-            <section className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4 text-xs text-white/80 space-y-2 overflow-auto">
-              <div className="font-semibold">Debug Watchmode Deeplinks</div>
-              <div>URL: {deeplinksUrl ?? 'n/d'}</div>
-              <pre className="whitespace-pre-wrap break-words">
-                {JSON.stringify(
-                  {
-                    links: deeplinks,
-                    debug: deeplinksDebug,
-                  },
-                  null,
-                  2,
-                )}
-              </pre>
-            </section>
-          )}
+          )} */}
         </main>
       </Container>
     </div>
