@@ -94,3 +94,6 @@ out/
 # --- Prisma / generated ---
 myfilm-tracking-starter/api/node_modules/.prisma/
 myfilm-tracking-starter/api/dist/
+.env
+.env.local
+src/.env
