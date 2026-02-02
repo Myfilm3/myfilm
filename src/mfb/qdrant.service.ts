@@ -39,6 +39,37 @@ type QdrantScrollResponse = {
 
 @Injectable()
 export class QdrantService {
+  // --- concurrency limiter (evita picos y timeouts contra Qdrant) ---
+  private static __inFlight = 0;
+  private static __waiters: Array<() => void> = [];
+
+  private async __acquireQdrantSlot(): Promise<void> {
+    const limit = Number(process.env.QDRANT_CONCURRENCY || 3);
+    if (!Number.isFinite(limit) || limit <= 0) return;
+
+    if (QdrantService.__inFlight < limit) {
+      QdrantService.__inFlight += 1;
+      return;
+    }
+
+    await new Promise<void>((resolve) => {
+      QdrantService.__waiters.push(() => {
+        QdrantService.__inFlight += 1;
+        resolve();
+      });
+    });
+  }
+
+  private __releaseQdrantSlot(): void {
+    const limit = Number(process.env.QDRANT_CONCURRENCY || 3);
+    if (!Number.isFinite(limit) || limit <= 0) return;
+
+    QdrantService.__inFlight = Math.max(0, QdrantService.__inFlight - 1);
+    const next = QdrantService.__waiters.shift();
+    if (next) next();
+  }
+  // --- end limiter ---
+
   private readonly url = process.env.QDRANT_URL!;
   private readonly apiKey = process.env.QDRANT_API_KEY!;
   private readonly collection = process.env.QDRANT_COLLECTION ?? 'title_profiles_v2';
@@ -49,15 +80,67 @@ export class QdrantService {
       'api-key': this.apiKey,
     };
   }
-
   private async post<T>(path: string, body: any): Promise<T> {
-    const r = await fetch(`${this.url}${path}`, {
-      method: 'POST',
-      headers: this.headers(),
-      body: JSON.stringify(body),
-    });
-    if (!r.ok) throw new Error(await r.text());
-    return (await r.json()) as T;
+        await this.__acquireQdrantSlot();
+// Normaliza base URL (quita / finales)
+    const base = (this.url || '').replace(/\/+$/, '');
+    const url = `${base}${path}`;
+
+    // Ajustes por ENV (se pueden tunear sin redeploy si usas --update-env)
+    const MAX_RETRIES = Number(process.env.QDRANT_MAX_RETRIES || 3);
+    const TIMEOUT_MS  = Number(process.env.QDRANT_TIMEOUT_MS  || 12000); // 12s
+    const BACKOFF_MS  = Number(process.env.QDRANT_BACKOFF_MS  || 400);
+
+    let lastErr: any = null;
+
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+      try {
+        const r = await fetch(url, {
+          method: 'POST',
+          headers: this.headers(),
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
+
+        if (!r.ok) {
+          const txt = await r.text().catch(() => '');
+
+          const retryable =
+            r.status === 429 ||
+            r.status === 408 ||
+            r.status === 504 ||
+            r.status >= 500;
+
+          if (retryable && attempt < MAX_RETRIES) {
+            const wait = Math.min(8000, BACKOFF_MS * Math.pow(2, attempt));
+            await new Promise((res) => setTimeout(res, wait));
+            continue;
+          }
+
+          throw new Error(`Qdrant HTTP ${r.status}: ${txt.slice(0, 200)}`);
+        }
+
+        return (await r.json()) as T;
+      } catch (e: any) {
+        lastErr = e;
+
+        if (attempt < MAX_RETRIES) {
+          const wait = Math.min(8000, BACKOFF_MS * Math.pow(2, attempt));
+          await new Promise((res) => setTimeout(res, wait));
+          continue;
+        }
+
+        throw e;
+      } finally {
+        clearTimeout(timer);
+        this.__releaseQdrantSlot();
+      }
+    }
+
+    throw lastErr;
   }
 
   private pickVector(v: any): number[] | null {

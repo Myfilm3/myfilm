@@ -122,7 +122,9 @@ export default function MostWatchedSection({ title, items }: Props) {
             className="
               flex gap-3
               overflow-x-auto
-              pb-2
+              overflow-y-visible
+              pt-3
+              pb-3
               [scrollbar-width:none]
               [&::-webkit-scrollbar]:hidden
             "
@@ -139,7 +141,7 @@ export default function MostWatchedSection({ title, items }: Props) {
               return (
                 <div
                   key={item.id}
-                  className="shrink-0"
+                  className="shrink-0 transition-transform duration-200 hover:scale-[1.06] hover:-translate-y-2 hover:z-10"
                   onMouseEnter={() => setActiveIndex(idx)}
                 >
                   <PosterCard
@@ -147,6 +149,7 @@ export default function MostWatchedSection({ title, items }: Props) {
                     title={title}
                     poster_path={item.poster_path}
                     href={href}
+                    flipOnHover={false}
                   />
                 </div>
               );

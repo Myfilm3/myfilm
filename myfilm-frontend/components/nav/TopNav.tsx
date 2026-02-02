@@ -20,21 +20,17 @@ export default function TopNav() {
   const [scrolled, setScrolled] = useState(false);
 
   const capRef = useRef<HTMLDivElement>(null);
-  const scrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Sombra / fondo según scroll (muy barato: solo cambia boolean)
   useEffect(() => {
     const onScroll = () => {
-      setScrolled(true);
-      if (scrollTimer.current) clearTimeout(scrollTimer.current);
-      scrollTimer.current = setTimeout(() => setScrolled(false), 180);
+      // Evitamos hacer setState si no cambia el valor
+      const next = window.scrollY > 40;
+      setScrolled((prev) => (prev === next ? prev : next));
     };
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      if (scrollTimer.current) clearTimeout(scrollTimer.current);
-      window.removeEventListener('scroll', onScroll);
-    };
+    return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
   // Exponer --nav-h (por si lo usas para offsets)
@@ -62,12 +58,10 @@ export default function TopNav() {
           className={[
             'w-[90vw] max-w-[1600px]',
             'grid grid-cols-[auto_1fr_auto] items-center gap-3 md:gap-4',
-            'rounded-[999px] border shadow-[0_8px_30px_rgba(0,0,0,0.35)]',
+            'rounded-full border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.35)]',
             'backdrop-blur-md px-3 md:px-4',
             'min-h-[52px] md:min-h-[64px] lg:min-h-[68px]',
-            scrolled
-              ? 'bg-white/6 border-white/20 backdrop-blur-2xl'
-              : 'bg-[#0e0e0e]/95 border-white/10',
+            scrolled ? 'bg-[#0e0e0e]/50' : 'bg-[#0e0e0e]/95',
           ].join(' ')}
         >
           {/* Col 1: LOGO */}
@@ -124,44 +118,17 @@ export default function TopNav() {
                   : 'relative w-[260px] sm:w-[360px] lg:w-[520px] xl:w-[640px] transition-all'
               }
             >
-              <div
-                className={[
-                  'relative flex items-center h-11 overflow-hidden rounded-[999px]',
-                  'bg-white/0 border border-[#f5a623] shadow-[0_8px_30px_rgba(0,0,0,0.25)]',
-                  'transition-all focus-within:border-[#f7c04a] focus-within:bg-white/5',
-                ].join(' ')}
-              >
-                <div className="pointer-events-none absolute inset-0 bg-white/0" />
-                <span
-                  className="relative z-10 pl-4 pr-2 text-white/90 pointer-events-none flex items-center"
-                  aria-hidden
-                >
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="opacity-90"
-                  >
-                    <circle cx="11" cy="11" r="6" stroke="currentColor" strokeWidth="2" />
-                    <path
-                      d="M20 20L16.5 16.5"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                </span>
-                <input
-                  type="search"
-                  placeholder="Busca todo, todo y todo"
-                  onFocus={() => setSearchOpen(true)}
-                  onBlur={() => setSearchOpen(false)}
-                  className="relative z-10 flex-1 h-full bg-transparent text-white placeholder-white/70 pr-4 outline-none border-0 appearance-none"
-                  aria-label="Buscar contenido"
-                />
-              </div>
+              <input
+                type="search"
+                placeholder="Busca todo, todo y todo"
+                onFocus={() => setSearchOpen(true)}
+                onBlur={() => setSearchOpen(false)}
+                className="w-full h-10 rounded-full bg-black/70 text-white placeholder-white/60 pl-11 pr-4 outline-none ring-1 ring-white/10 focus:ring-white/30"
+                aria-label="Buscar contenido"
+              />
+              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-white/60">
+                🔍
+              </span>
             </div>
 
             {/* Botón / avatar de usuario (SIEMPRE visible en desktop) */}
@@ -209,38 +176,12 @@ export default function TopNav() {
               </button>
             </div>
             <div className="pt-2">
-              <div className="relative">
-                <div className="relative flex items-center h-11 overflow-hidden rounded-[999px] bg-white/5 border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.2)] backdrop-blur-md transition focus-within:border-white/25 focus-within:bg-white/10">
-                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-white/5 via-white/0 to-white/5 opacity-60" />
-                  <span
-                    className="relative z-10 pl-4 pr-2 text-white/80 pointer-events-none flex items-center"
-                    aria-hidden
-                  >
-                    <svg
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="opacity-90"
-                    >
-                      <circle cx="11" cy="11" r="6" stroke="currentColor" strokeWidth="2" />
-                      <path
-                        d="M20 20L16.5 16.5"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                  </span>
-                  <input
-                    type="search"
-                    placeholder="Busca todo, todo y todo"
-                    className="relative z-10 flex-1 h-full bg-transparent text-white placeholder-white/60 pr-4 outline-none border-0 appearance-none"
-                    aria-label="Buscar contenido"
-                  />
-                </div>
-              </div>
+              <input
+                type="search"
+                placeholder="Busca todo, todo y todo"
+                className="w-full h-10 rounded-full bg-black/60 text-white placeholder-white/60 px-4 outline-none ring-1 ring-white/10 focus:ring-white/30"
+                aria-label="Buscar contenido"
+              />
             </div>
             <nav className="pt-2 space-y-2" aria-label="Menú móvil">
               {TABS.map((t) => (

@@ -13,6 +13,7 @@ type PosterCardProps = {
   rating?: number;                 // valoración TMDB
   duration?: string;               // duración ya formateada, ej: "2h 35min" o "147 min"
   href?: string;                   // a dónde navega al click
+  flipOnHover?: boolean;
 
   onPlay?: (id: number) => void;
   onMore?: (id: number) => void;
@@ -33,6 +34,7 @@ export default function PosterCard({
   rating,
   duration,
   href,
+  flipOnHover = true,
   onMore,
 }: PosterCardProps) {
   const placeholderSrc = '/legacy/images/caratula_vacia.webp';
@@ -55,7 +57,13 @@ export default function PosterCard({
       aria-label={title || 'Póster'}
     >
       {/* Contenedor 3D */}
-      <div className="relative h-full w-full transition-transform duration-500 [transform-style:preserve-3d] group-hover:[transform:rotateY(180deg)] group-focus-visible:[transform:rotateY(180deg)]">
+      <div
+        className={`relative h-full w-full transition-transform duration-500 [transform-style:preserve-3d] ${
+          flipOnHover
+            ? 'group-hover:[transform:rotateY(180deg)] group-focus-visible:[transform:rotateY(180deg)]'
+            : ''
+        }`}
+      >
         {/* CARA FRONTAL */}
         <div className="absolute inset-0 [backface-visibility:hidden]">
           <Image

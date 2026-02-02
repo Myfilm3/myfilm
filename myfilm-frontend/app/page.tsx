@@ -1,12 +1,14 @@
 // app/page.tsx
 import type { ReactNode } from 'react';
-import { getTop } from '@/lib/api';
+import { getCollection, getTop } from '@/lib/api';
 import Hero from './Hero';
 import CarouselSection from '@/components/layout/CarouselSection';
 import MoodsSection from '@/components/home/MoodsSection';
 import MostWatchedSection from '@/components/home/MostWatchedSection';
 import UpcomingSection from '@/components/home/UpcomingSection';
 import GenresSection from '@/components/home/GenresSection';
+import BestCollectionsSection from '@/components/home/BestCollectionsSection';
+import { getHomePrivate } from '@/lib/home';
 
 function FullBleed90vw({ children }: { children: ReactNode }) {
   return (
@@ -39,6 +41,33 @@ export default async function Home() {
     // Próximamente → upcoming TMDB
     getTop('upcoming', { page: 1 }),
   ]);
+
+  const homePrivate = await getHomePrivate().catch(() => null);
+
+  const fallbackCollectionIds = [10, 119, 86311, 1241];
+  const fallbackCollections = await Promise.all(
+    fallbackCollectionIds.map(async (id) => {
+      const collection = await getCollection(id).catch(() => null);
+      return collection
+        ? {
+            id: collection.id,
+            name: collection.name,
+            backdrop_path: collection.backdrop_path ?? null,
+            poster_path: collection.parts?.[0]?.poster_path ?? null,
+          }
+        : null;
+    }),
+  );
+
+  const bestCollections =
+    homePrivate?.mejores_colecciones?.length
+      ? homePrivate.mejores_colecciones
+      : (fallbackCollections.filter(Boolean) as {
+          id: number;
+          name: string;
+          backdrop_path?: string | null;
+          poster_path?: string | null;
+        }[]);
 
   // Hero con máximo 10
   const heroItems = (trendingWeek.results ?? []).slice(0, 10);
@@ -86,7 +115,12 @@ export default async function Home() {
           />
         </FullBleed90vw>
 
-        {/* NUEVA sección: géneros + CTA “¿Aún con todo…?” */}
+        {/* Colecciones */}
+        <FullBleed90vw>
+          <BestCollectionsSection items={bestCollections} />
+        </FullBleed90vw>
+
+        {/* Sección: géneros + CTA “¿Aún con todo…?” */}
         <FullBleed90vw>
           <GenresSection />
         </FullBleed90vw>

@@ -103,6 +103,11 @@ export default function Hero({ items, fullBleed = true }: Props) {
     let trailerMountTimeout: ReturnType<typeof setTimeout> | null = null;
     let trailerShowTimeout: ReturnType<typeof setTimeout> | null = null;
 
+    // ✅ FIX: compatible browser/node
+    let idleHandle: ReturnType<typeof setTimeout> | number | null = null;
+
+    const idleFallbackDelayMs = 900;
+
     // Reset asíncrono para contentar al linter
     resetTimeout = setTimeout(() => {
       if (cancelled) return;
@@ -119,10 +124,23 @@ export default function Hero({ items, fullBleed = true }: Props) {
     const mediaType: 'movie' | 'tv' =
       current.media_type === 'tv' ? 'tv' : 'movie';
 
-    (async () => {
+    const runLogoFetch = async () => {
       try {
-        const [logo, trailer, details] = await Promise.all([
-          getTitleLogo(mediaType, current.id).catch(() => null),
+        const logo = await getTitleLogo(mediaType, current.id).catch(() => null);
+        if (cancelled) return;
+        setLogoUrl(logo ?? null);
+        setLogoLoading(false);
+      } catch {
+        if (!cancelled) {
+          setLogoUrl(null);
+          setLogoLoading(false);
+        }
+      }
+    };
+
+    const runDeferredFetches = async () => {
+      try {
+        const [trailer, details] = await Promise.all([
           getTrailer(mediaType, current.id).catch(() => null),
           mediaType === 'movie'
             ? getMovie(current.id).catch(() => null)
@@ -131,8 +149,6 @@ export default function Hero({ items, fullBleed = true }: Props) {
 
         if (cancelled) return;
 
-        setLogoUrl(logo ?? null);
-        setLogoLoading(false);
         setTrailerUrl(trailer ?? null);
         setTrailerProgress(0);
 
@@ -234,13 +250,37 @@ export default function Hero({ items, fullBleed = true }: Props) {
           setMeta({ ageLabel: null, runtimeLabel: null });
         }
       }
-    })();
+    };
+
+    void runLogoFetch();
+
+    if ('requestIdleCallback' in window) {
+      idleHandle = window.requestIdleCallback(
+        () => {
+          if (!cancelled) void runDeferredFetches();
+        },
+        { timeout: 1500 },
+      );
+    } else {
+      // ✅ FIX: setTimeout devuelve Timeout en node, number en browser -> ya lo cubre el tipo
+      idleHandle = setTimeout(() => {
+        if (!cancelled) void runDeferredFetches();
+      }, idleFallbackDelayMs);
+    }
 
     return () => {
       cancelled = true;
       if (resetTimeout) clearTimeout(resetTimeout);
       if (trailerMountTimeout) clearTimeout(trailerMountTimeout);
       if (trailerShowTimeout) clearTimeout(trailerShowTimeout);
+
+      if (idleHandle !== null) {
+        if ('cancelIdleCallback' in window) {
+          window.cancelIdleCallback(idleHandle as number);
+        } else {
+          clearTimeout(idleHandle as ReturnType<typeof setTimeout>);
+        }
+      }
     };
   }, [current]);
 
@@ -309,6 +349,7 @@ export default function Hero({ items, fullBleed = true }: Props) {
       }
     };
   }, [showTrailer, trailerUrl, idx, goNextAuto]);
+
   if (!current) return null;
 
   return (
@@ -333,6 +374,7 @@ export default function Hero({ items, fullBleed = true }: Props) {
           alt={title}
           fill
           priority
+          fetchPriority="high"
           sizes="100vw"
           onLoadingComplete={() => setLoadedId(current.id)}
           className={`object-cover transition-opacity duration-700 ${
@@ -348,6 +390,7 @@ export default function Hero({ items, fullBleed = true }: Props) {
                 src={iframeSrc}
                 title="Trailer"
                 className={`absolute left-1/2 top-1/2 w-[120vw] h-[120vh] -translate-x-1/2 -translate-y-1/2 transition-opacity duration-[1400ms] ease-out ${showTrailer ? 'opacity-100' : 'opacity-0'}`}
+                loading="lazy"
                 allow="autoplay; encrypted-media; picture-in-picture"
                 allowFullScreen
               />

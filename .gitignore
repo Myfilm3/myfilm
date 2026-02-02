@@ -97,3 +97,35 @@ myfilm-tracking-starter/api/dist/
 .env
 .env.local
 src/.env
+
+# OS / editor
+.DS_Store
+.vscode/
+*.swp
+
+# env / secrets
+.env
+.env.*
+ecosystem.config.js
+ecosystem.config.cjs
+
+# backups / temp
+*.bak
+*.bak.*
+tmp/
+cached
+FROM
+SELECT
+LIMIT
+ORDER
+id,
+titulo,
+type,
+tmdb_id,
+poster_320,
+media_status
+
+# node
+node_modules/
+**/.next/
+**/.next/cache/

@@ -1,7 +1,5 @@
 // myfilm-frontend/components/home/MoodsSection.tsx
-'use client';
-
-import { useState } from 'react';
+import type { CSSProperties } from 'react';
 
 type Mood = {
   label: string;
@@ -27,25 +25,11 @@ const MOODS: Mood[] = [
 const BASE_BG = '#050B14';
 
 function MoodCard({ mood }: { mood: Mood }) {
-  const [hovered, setHovered] = useState(false);
-
-  const bgGradient = hovered
-    ? `
-        linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.2) 35%, rgba(0,0,0,0.6) 100%),
-        linear-gradient(135deg, ${mood.color}, ${mood.color})
-      `
-    : `
-        linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.12) 40%, rgba(0,0,0,0.35) 100%),
-        linear-gradient(135deg, ${BASE_BG}, ${BASE_BG})
-      `;
-  const scale = hovered ? 1.03 : 1;
-
   return (
     <a
       href={mood.href}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
       className="
+        group
         shrink-0
         w-[240px] h-[120px]
         md:w-[240px] md:h-[120px]
@@ -58,12 +42,15 @@ function MoodCard({ mood }: { mood: Mood }) {
         border border-white/10
         shadow-[0_14px_28px_rgba(0,0,0,0.35),_0_10px_24px_rgba(0,0,0,0.25)]
         transition-all duration-150
+        hover:scale-[1.03]
+        bg-[linear-gradient(180deg,rgba(0,0,0,0)_0%,rgba(0,0,0,0.12)_40%,rgba(0,0,0,0.35)_100%),linear-gradient(135deg,var(--base-bg),var(--base-bg))]
+        hover:bg-[linear-gradient(180deg,rgba(0,0,0,0)_0%,rgba(0,0,0,0.2)_35%,rgba(0,0,0,0.6)_100%),linear-gradient(135deg,var(--mood-color),var(--mood-color))]
         cursor-pointer
       "
       style={{
-        background: bgGradient,
-        transform: `scale(${scale})`,
-      }}
+        '--mood-color': mood.color,
+        '--base-bg': BASE_BG,
+      } as CSSProperties}
     >
       <span>{mood.label}</span>
     </a>

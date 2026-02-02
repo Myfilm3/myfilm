@@ -3,6 +3,27 @@ import { Injectable } from '@nestjs/common';
 import { QdrantService } from './qdrant.service';
 import { TmdbService, TmdbAny } from './tmdb.service';
 
+// --- helper: limita concurrencia para evitar picos/colas en Qdrant ---
+async function mapLimit<T, R>(
+  items: T[],
+  limit: number,
+  fn: (x: T) => Promise<R>,
+): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let i = 0;
+  const workers = Array.from({ length: Math.max(1, limit) }, async () => {
+    while (true) {
+      const idx = i;
+      i += 1;
+      if (idx >= items.length) break;
+      out[idx] = await fn(items[idx]);
+    }
+  });
+  await Promise.all(workers);
+  return out;
+}
+// --- end helper ---
+
 export type MfbRec = {
   tmdb_id: number;
   score: number;
@@ -340,9 +361,10 @@ export class MyFilmBrainService {
     // en cine cerebral (Origen) NO lo quiero duro. Lo dejo solo si hay seedYear y no es kids.
     const yearFilter = !seedIsKids ? seedYear ?? undefined : undefined;
 
-    const searches = await Promise.all(
-      usedProfiles.map(async (p) => {
-        const bucket = String(p.profile_type);
+    const searches = await mapLimit(usedProfiles, Number(process.env.MFB_QDRANT_CONCURRENCY || 3), async (p) => {
+
+
+      const bucket = String(p.profile_type);
         const hits = await this.qdrant.searchByVector({
           vector: p.vector,
           profileType: bucket,
@@ -445,7 +467,9 @@ export class MyFilmBrainService {
       poster_path: r.poster_path,
       backdrop_path: r.backdrop_path,
       source_bucket: r.source_bucket,
-    }));
+
+
+    });
 
     return {
       titleId,
@@ -498,9 +522,10 @@ export class MyFilmBrainService {
       };
     }
 
-    const searches = await Promise.all(
-      usedProfiles.map(async (p) => {
-        const hits = await this.qdrant.searchByVector({
+    const searches = await mapLimit(usedProfiles, Number(process.env.MFB_QDRANT_CONCURRENCY || 3), async (p) => {
+
+
+      const hits = await this.qdrant.searchByVector({
           vector: p.vector,
           profileType: String(p.profile_type),
           excludeTmdbId: titleId,
@@ -524,7 +549,9 @@ export class MyFilmBrainService {
         tmdb_id,
         score: Number(v.rrf.toFixed(6)),
         source_bucket: [...v.buckets].sort().join('+'),
-      }));
+
+
+    });
 
     return {
       titleId,

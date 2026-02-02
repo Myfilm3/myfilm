@@ -61,7 +61,7 @@ export default function GenresSection() {
                 className="absolute inset-0"
                 style={{
                   background: `
-                    linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.15) 90%, rgba(0,0,0,0.3) 100%),
+                    linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.15) 9%, rgba(0,0,0,0.3) 100%),
                     linear-gradient(135deg, ${g.from}, ${g.to})
                   `,
                 }}

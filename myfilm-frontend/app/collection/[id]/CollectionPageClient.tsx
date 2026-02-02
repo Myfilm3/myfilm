@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import Container from '@/components/layout/Container';
 import {
   getCollection,
@@ -12,6 +13,19 @@ import {
 } from '@/lib/api';
 
 export default function CollectionPageClient() {
+  // 1) BAJAR / SUBIR TODO el contenido (en píxeles)
+  //    - ejemplo: 0, 40, 80, 120...
+  const CONTENT_TOP_PX = 500;
+
+  // 2) EMPUJAR A LA IZQUIERDA (en rem)
+  //    - sube/baja hasta que el inicio del contenido quede “donde está todo”
+  //    - ejemplo: 0, 6, 8, 10, 12...
+  const SHIFT_REM = 11;
+
+  // 3) ANCHO EXTRA del carrusel hacia la derecha (en píxeles)
+  //    - ejemplo: 0, 120, 240, 360...
+  const CAROUSEL_EXTRA_PX = 550;
+
   const params = useParams();
 
   const rawId =
@@ -56,7 +70,7 @@ export default function CollectionPageClient() {
         }
 
         setCollection(data);
-      } catch (e) {
+      } catch {
         if (!cancelled) setError('Error cargando la colección.');
       } finally {
         if (!cancelled) setLoading(false);
@@ -107,17 +121,26 @@ export default function CollectionPageClient() {
       {/* FONDO FIJO DETRÁS DEL MENÚ */}
       {backgroundUrl && (
         <div className="fixed inset-0 -z-10">
-          <img
+          <Image
             src={backgroundUrl}
             alt={collection.name}
-            className="w-full h-full object-cover"
+            fill
+            sizes="100vw"
+            className="object-cover"
+            priority
           />
           <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/10" />
         </div>
       )}
 
       <Container>
-        <main className="py-10 space-y-8 max-w-5xl">
+        <main
+          className="py-10 space-y-8 max-w-5xl"
+          style={{
+            marginTop: `${CONTENT_TOP_PX}px`,
+            transform: `translateX(-${SHIFT_REM}rem)`,
+          }}
+        >
           {/* CABECERA */}
           <header className="space-y-3 max-w-3xl">
             <h1 className="text-3xl sm:text-4xl font-semibold drop-shadow-lg">
@@ -149,43 +172,43 @@ export default function CollectionPageClient() {
                 Películas de la colección
               </h2>
 
-              <div className="flex gap-4 overflow-x-auto pb-3">
-                {movies.map((m) => {
-                  const title = m.title || m.name || 'Sin título';
-                  const poster = m.poster_path
-                    ? `https://image.tmdb.org/t/p/w342${m.poster_path}`
-                    : null;
-                  const year = (m.release_date || '').slice(0, 4);
+              <div
+                className="overflow-x-auto overflow-y-visible pt-6 pb-6"
+                style={{ width: `calc(100% + ${CAROUSEL_EXTRA_PX}px)` }}
+              >
+                <div className="grid grid-flow-col auto-cols-[200px] gap-4 pr-2 overflow-visible">
+                  {movies.map((m) => {
+                    const title = m.title || m.name || 'Sin título';
+                    const poster = m.poster_path
+                      ? `https://image.tmdb.org/t/p/w342${m.poster_path}`
+                      : null;
 
-                  return (
-                    <Link
-                      key={m.id}
-                      href={`/movies/${m.id}`}
-                      className="group min-w-[150px] max-w-[150px] rounded-lg overflow-hidden bg-black/60 border border-white/10 shadow-[0_10px_25px_rgba(0,0,0,0.7)] hover:-translate-y-1 transition-transform"
-                    >
-                      {poster ? (
-                        <img
-                          src={poster}
-                          alt={title}
-                          className="w-full aspect-[2/3] object-cover transition-transform duration-200 group-hover:scale-[1.04]"
-                        />
-                      ) : (
-                        <div className="w-full aspect-[2/3] flex items-center justify-center text-xs text-white/60 bg-black/40">
-                          Sin póster
+                    return (
+                      <Link
+                        key={m.id}
+                        href={`/movies/${m.id}`}
+                        className="group w-[200px] h-[300px] rounded-lg transition-transform duration-200 hover:scale-[1.06] hover:-translate-y-2 hover:z-10"
+                      >
+                        <div className="w-full h-full rounded-lg overflow-hidden bg-black/60 border border-white/10 shadow-[0_10px_25px_rgba(0,0,0,0.7)]">
+                          {poster ? (
+                            <Image
+                              src={poster}
+                              alt={title}
+                              width={200}
+                              height={300}
+                              sizes="200px"
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-xs text-white/60 bg-black/40">
+                              Sin póster
+                            </div>
+                          )}
                         </div>
-                      )}
-
-                      <div className="p-2 space-y-1">
-                        <p className="text-xs font-medium line-clamp-2">
-                          {title}
-                        </p>
-                        {year && (
-                          <p className="text-[0.7rem] text-white/70">{year}</p>
-                        )}
-                      </div>
-                    </Link>
-                  );
-                })}
+                      </Link>
+                    );
+                  })}
+                </div>
               </div>
             </section>
           )}

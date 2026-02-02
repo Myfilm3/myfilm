@@ -2,10 +2,12 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
+import { devUserMiddleware } from './common/middleware/dev-user.middleware';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { cors: true });
 
+  app.use(devUserMiddleware);
   // 👇 Permite que Swagger cargue sus scripts/estilos en local
   app.use(
     helmet({

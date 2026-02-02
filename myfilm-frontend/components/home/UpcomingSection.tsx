@@ -1,6 +1,4 @@
 // components/home/UpcomingSection.tsx
-'use client';
-
 import PosterCard from '@/components/cards/PosterCard';
 
 type Item = {
@@ -50,7 +48,9 @@ export default function UpcomingSection({ items }: Props) {
         className="
           flex gap-3
           overflow-x-auto
-          pb-2
+          overflow-y-visible
+          pt-3
+          pb-3
           [scrollbar-width:none]
           [&::-webkit-scrollbar]:hidden
         "
@@ -68,7 +68,7 @@ export default function UpcomingSection({ items }: Props) {
           return (
             <div
               key={item.id}
-              className="relative shrink-0 group"
+              className="relative shrink-0 group transition-transform duration-200 hover:scale-[1.06] hover:-translate-y-2 hover:z-10"
             >
               <PosterCard
                 id={item.id}
